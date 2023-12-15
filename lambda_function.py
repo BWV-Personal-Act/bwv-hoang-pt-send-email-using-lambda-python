@@ -2,13 +2,14 @@ import smtplib
 import os
 import requests
 import json
+from datetime import datetime
 
 from email.mime.text import MIMEText
 
 gmail_account = os.environ.get('GMAIL_ACCOUNT')
 gmail_password = os.environ.get('GMAIL_APP_PASSWORD')
 
-def send_email(recipients, subject):
+def sendEmail(recipients, subject):
     try:
         body = f'''
         Hello,
@@ -44,7 +45,7 @@ def send_email(recipients, subject):
             'message': 'Send email failed!' 
         }
 
-def send_slack_notification(webhook_url, message):
+def sendSlackNotification(webhook_url, message):
     slack_data = {'text': message}
 
     response = requests.post(
@@ -55,12 +56,27 @@ def send_slack_notification(webhook_url, message):
     if response.status_code != 200:
         raise ValueError(f'Error sending to Slack: {response.status_code}, response: {response.text}')
 
-def lambda_handler():
+def checkIsMondayOrFriday():
+    today = datetime.now().weekday()
+    if (today == 0 or today == 4):
+        return True
+    
+    return False
+
+def lambdaHandler():
+    isMondayOrFriday = checkIsMondayOrFriday()
+
+    if (isMondayOrFriday == False):
+        return {
+            'statusCode': 200,
+            'body': 'Today is not Monday or Friday'
+        }
+
     subject = os.environ.get('MAIL_SUBJECT')
     recipients = os.environ.get("MAIL_RECIPIENTS")
-    slack_webhook_url = os.environ.get('SLACK_WEBHOOK_URL')
+    slack_webhook_url = os.environ.get('SLACK_HOOK_CHANNEL')
 
-    result = send_email(recipients, subject)
+    result = sendEmail(recipients, subject)
     message = ''
 
     if result['statusCode'] == 200:
@@ -71,7 +87,7 @@ def lambda_handler():
     
     try:
         if slack_webhook_url is not None:
-            send_slack_notification(slack_webhook_url, message)
+            sendSlackNotification(slack_webhook_url, message)
 
         return {
             'statusCode': result['statusCode'],
@@ -82,5 +98,3 @@ def lambda_handler():
             'statusCode': 400,
             'body': 'Send email and notification to Slack failed!'
         }
-
-lambda_handler()
